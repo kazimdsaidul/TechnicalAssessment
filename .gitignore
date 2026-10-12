@@ -1,0 +1,24 @@
+# OpenSpec / AI tooling (internal planning, not part of the deliverable)
+.claude/
+openspec/
+
+# Android / Gradle
+*.iml
+.gradle/
+**/.gradle/
+local.properties
+.idea/
+**/.idea/
+.DS_Store
+build/
+**/build/
+captures/
+**/captures/
+.externalNativeBuild/
+**/.externalNativeBuild/
+.cxx/
+**/.cxx/
+*.apk
+*.aab
+
+# Gradle wrapper jar is intentionally NOT ignored (needed for ./gradlew to work from a fresh clone)

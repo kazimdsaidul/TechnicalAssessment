@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.GeoPunch" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/geopunch_primary</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
