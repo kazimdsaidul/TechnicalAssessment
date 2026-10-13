@@ -20,5 +20,8 @@ captures/
 **/.cxx/
 *.apk
 *.aab
+*.jks
+*.keystore
+keystore.properties
 
 # Gradle wrapper jar is intentionally NOT ignored (needed for ./gradlew to work from a fresh clone)
