@@ -58,10 +58,12 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
             )
 
-            // Bumped on every permission result so the location-collection effect below restarts
-            // and re-evaluates permission, even when granted without an intervening lifecycle
-            // stop/start (repeatOnLifecycle alone won't retry a flow that already completed).
-            var permissionResultVersion by remember { mutableIntStateOf(0) }
+            // Bumped on every permission result AND every GPS-resolution attempt so the
+            // location-collection effect below restarts and retries, even when the underlying
+            // condition was fixed without an intervening lifecycle stop/start — repeatOnLifecycle
+            // alone won't retry a collectLiveLocation() flow that already completed (it closes
+            // itself on the first PermissionDenied/LocationServicesDisabled emission).
+            var locationRecheckTrigger by remember { mutableIntStateOf(0) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions(),
@@ -73,13 +75,15 @@ class MainActivity : ComponentActivity() {
                         Manifest.permission.ACCESS_FINE_LOCATION,
                     )
                 viewModel.onIntent(AttendanceIntent.LocationPermissionResult(granted, permanentlyDenied))
-                permissionResultVersion++
+                locationRecheckTrigger++
             }
 
             val resolutionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.StartIntentSenderForResult(),
             ) {
-                // Outcome is observed indirectly: the next location update reflects whether GPS is on.
+                // Whether the user actually enabled GPS or dismissed the prompt, retry collection
+                // so the UI reflects the real current state instead of the stale "disabled" one.
+                locationRecheckTrigger++
             }
 
             LaunchedEffect(Unit) {
@@ -94,12 +98,16 @@ class MainActivity : ComponentActivity() {
                                 IntentSenderRequest.Builder(status.exception.resolution).build(),
                             )
                         }
-                        else -> Unit
+                        // GMS can resolve settings as a side effect of the check itself (observed
+                        // on some OEM/version combos) without ever going through the Resolvable
+                        // branch above — retry immediately rather than leaving a stale banner.
+                        LocationSettingsStatus.Satisfied -> locationRecheckTrigger++
+                        LocationSettingsStatus.Unresolvable -> Unit
                     }
                 }
             }
 
-            LaunchedEffect(lifecycleOwner, permissionResultVersion) {
+            LaunchedEffect(lifecycleOwner, locationRecheckTrigger) {
                 lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     viewModel.collectLiveLocation()
                 }
