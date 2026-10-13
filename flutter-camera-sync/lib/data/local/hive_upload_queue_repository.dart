@@ -46,6 +46,9 @@ class HiveUploadQueueRepository implements UploadQueueRepository {
   }
 
   @override
+  Future<List<UploadBatch>> getAllBatches() async => _box.values.toList();
+
+  @override
   Future<UploadBatch> createBatch() async {
     final batch = UploadBatch(id: _generateId(), createdAt: DateTime.now());
     await _box.put(batch.id, batch);

@@ -10,6 +10,11 @@ abstract class UploadQueueRepository {
   /// Emits the current list of batches whenever the queue changes.
   Stream<List<UploadBatch>> observeBatches();
 
+  /// One-shot read of every batch. Used for polling (see design.md on why
+  /// the Upload Manager screen polls rather than subscribes), where opening
+  /// and tearing down a stream subscription on every tick would be wasteful.
+  Future<List<UploadBatch>> getAllBatches();
+
   /// Creates a new, empty batch in the `capturing` state.
   Future<UploadBatch> createBatch();
 
