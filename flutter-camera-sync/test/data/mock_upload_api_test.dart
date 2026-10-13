@@ -4,36 +4,41 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('MockUploadApi', () {
-    test('first attempt fails, second attempt succeeds', () async {
+    test('an image with no prior attempts fails', () async {
       final api = MockUploadApi(simulatedLatency: Duration.zero);
       const image = CapturedImage(id: 'img1', batchId: 'b1', filePath: '/a.jpg');
 
-      final first = await api.uploadImage(image);
-      final second = await api.uploadImage(image);
-
-      expect(first, isFalse);
-      expect(second, isTrue);
+      expect(await api.uploadImage(image), isFalse);
     });
 
-    test('subsequent attempts after success remain successful', () async {
+    test('an image with a persisted retry count succeeds', () async {
       final api = MockUploadApi(simulatedLatency: Duration.zero);
-      const image = CapturedImage(id: 'img1', batchId: 'b1', filePath: '/a.jpg');
+      const image = CapturedImage(id: 'img1', batchId: 'b1', filePath: '/a.jpg', retryCount: 1);
 
-      await api.uploadImage(image);
-      await api.uploadImage(image);
-      final third = await api.uploadImage(image);
-
-      expect(third, isTrue);
+      expect(await api.uploadImage(image), isTrue);
     });
 
-    test('different images track attempts independently', () async {
+    test(
+      'determinism survives a fresh MockUploadApi instance, as happens across the '
+      'foreground/background isolate boundary',
+      () async {
+        const firstAttemptImage = CapturedImage(id: 'img1', batchId: 'b1', filePath: '/a.jpg');
+        final firstResult = await MockUploadApi(simulatedLatency: Duration.zero).uploadImage(firstAttemptImage);
+        expect(firstResult, isFalse);
+
+        final retriedImage = firstAttemptImage.copyWith(retryCount: firstAttemptImage.retryCount + 1);
+        final secondResult = await MockUploadApi(simulatedLatency: Duration.zero).uploadImage(retriedImage);
+        expect(secondResult, isTrue);
+      },
+    );
+
+    test('different images are judged independently by their own retry count', () async {
       final api = MockUploadApi(simulatedLatency: Duration.zero);
       const imageA = CapturedImage(id: 'a', batchId: 'b1', filePath: '/a.jpg');
-      const imageB = CapturedImage(id: 'b', batchId: 'b1', filePath: '/b.jpg');
+      const imageB = CapturedImage(id: 'b', batchId: 'b1', filePath: '/b.jpg', retryCount: 1);
 
       expect(await api.uploadImage(imageA), isFalse);
-      expect(await api.uploadImage(imageB), isFalse, reason: 'a new image also fails its first attempt');
-      expect(await api.uploadImage(imageA), isTrue);
+      expect(await api.uploadImage(imageB), isTrue);
     });
   });
 }
