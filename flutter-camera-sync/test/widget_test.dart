@@ -1,30 +1,59 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:camera_sync/data/camera/camera_hardware_controller.dart';
+import 'package:camera_sync/data/sync/upload_sync_coordinator.dart';
+import 'package:camera_sync/domain/repository/upload_queue_repository.dart';
+import 'package:camera_sync/presentation/camera/camera_cubit.dart';
+import 'package:camera_sync/presentation/camera/camera_state.dart';
+import 'package:camera_sync/presentation/camera/zoom_controls.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
-import 'package:camera_sync/main.dart';
+class MockCameraHardwareController extends Mock implements CameraHardwareController {}
+
+class MockUploadQueueRepository extends Mock implements UploadQueueRepository {}
+
+class MockUploadSyncCoordinator extends Mock implements UploadSyncCoordinator {}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('tapping a zoom preset chip updates the displayed zoom level', (tester) async {
+    final hardware = MockCameraHardwareController();
+    when(() => hardware.initialize()).thenAnswer((_) async {});
+    when(() => hardware.minZoomLevel).thenReturn(0.5);
+    when(() => hardware.maxZoomLevel).thenReturn(4.0);
+    when(() => hardware.setZoomLevel(any())).thenAnswer((_) async {});
+    when(() => hardware.dispose()).thenAnswer((_) async {});
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final cubit = CameraCubit(
+      hardware: hardware,
+      repository: MockUploadQueueRepository(),
+      syncCoordinator: MockUploadSyncCoordinator(),
+    );
+    await cubit.initialize();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider.value(
+          value: cubit,
+          child: Scaffold(
+            body: BlocBuilder<CameraCubit, CameraState>(
+              builder: (context, state) {
+                if (state is! CameraReady) return const SizedBox();
+                return ZoomControls(state: state);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('1.0x'), findsOneWidget);
+
+    await tester.tap(find.text('2x'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2.0x'), findsOneWidget);
+
+    await cubit.close();
   });
 }
