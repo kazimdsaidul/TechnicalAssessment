@@ -60,45 +60,8 @@ Clean Architecture mirrored from Task 1, Flutter-idiomatic BLoC/Cubit in place o
 
 ## Generative AI Usage
 
-Both tasks were built with **Claude Code**, using a structured spec-driven workflow (via the
-[OpenSpec](https://github.com/Fission-AI/OpenSpec) CLI): explore the problem and codebase, write a
-proposal/spec/design/tasks breakdown, implement task-by-task with verification after each one, then
-archive. This kept the AI grounded in an explicit, reviewable plan rather than improvising, and made
-it possible to track exactly what was implemented and verified at each step.
+Both tasks were built with **Claude Code**, using a structured my own workflow. 
 
-Representative prompts actually used in this project (not generic examples):
-
-- *"The goal is to implement a location-aware attendance trigger with high accuracy..."* — the
-  assessment brief itself, used to kick off exploration of Task 1's requirements and existing
-  patterns before any code was written.
-- *"1. 0.5x Pinch to Zoom effect Capcut. 2. Use platfrom standard."* — two deliberately terse
-  directives for Task 2 that resolved real design ambiguities: "CapCut-style" zoom meant continuous
-  digital zoom via `CameraController.setZoomLevel()` with 0.5x/1x/2x as tap-to-jump presets, not
-  switching physical camera lenses; "platform standard" meant relying purely on WorkManager's own
-  `NetworkType.connected` constraint and exponential backoff, with no custom connectivity-listener
-  code.
-- *"first attempt always fails, succeeds on retry — guarantees the 'resilient sync' story is
-  visibly demonstrated every time you record it"* — the explicit reasoning behind `MockUploadApi`
-  being deterministic rather than randomized.
-- *"device connect please test 4.4 and 6.1"* — direction to stop at the unit-test level and
-  actually run the app on a connected physical device, which is what surfaced two real bugs below.
-
-Two defects were found and fixed **on a physical device**, not in review:
-
-1. A distance-indicator state bug in Task 1 where the live indicator didn't restart after a
-   delayed permission grant.
-2. A genuine architectural bug in Task 2: `MockUploadApi`'s "fail-then-succeed" behavior was
-   tracked in an in-memory counter, which reset to empty every time the `workmanager` background
-   isolate spun up its own fresh instance of the class — so a failed upload would retry forever and
-   never actually sync. Fixed by deriving the fail/succeed decision from `CapturedImage.retryCount`,
-   which is persisted through Hive and so survives the isolate boundary. This is called out because
-   it's a good example of why on-device verification mattered here: it's not something a unit test
-   against a single instance would have caught, since the bug is specifically about what happens
-   *between* two separate instances in two separate isolates.
-
-AI-suggested implementation choices were cross-checked against intent rather than accepted
-automatically — e.g. hand-writing Hive's `TypeAdapter`s instead of pulling in `hive_generator`/
-`build_runner`, after their `analyzer` version constraint turned out to conflict with `bloc_test`'s.
 
 ## How to Run
 
