@@ -13,6 +13,9 @@ class FakeAttendanceRepository(
     val officeLocationFlow = MutableStateFlow(initialOfficeLocation)
     val markedTodayFlow = MutableStateFlow(initialMarkedToday)
 
+    var markAttendanceNowCallCount: Int = 0
+        private set
+
     override fun observeOfficeLocation(): StateFlow<Coordinates?> = officeLocationFlow
 
     override suspend fun saveOfficeLocation(coordinates: Coordinates) {
@@ -22,6 +25,7 @@ class FakeAttendanceRepository(
     override fun observeTodayAttendanceMarked(): StateFlow<Boolean> = markedTodayFlow
 
     override suspend fun markAttendanceNow() {
+        markAttendanceNowCallCount++
         markedTodayFlow.value = true
     }
 }

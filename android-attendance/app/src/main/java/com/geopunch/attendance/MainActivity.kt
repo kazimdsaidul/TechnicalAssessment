@@ -15,6 +15,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -55,6 +58,11 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
             )
 
+            // Bumped on every permission result so the location-collection effect below restarts
+            // and re-evaluates permission, even when granted without an intervening lifecycle
+            // stop/start (repeatOnLifecycle alone won't retry a flow that already completed).
+            var permissionResultVersion by remember { mutableIntStateOf(0) }
+
             val permissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions(),
             ) { results ->
@@ -65,6 +73,7 @@ class MainActivity : ComponentActivity() {
                         Manifest.permission.ACCESS_FINE_LOCATION,
                     )
                 viewModel.onIntent(AttendanceIntent.LocationPermissionResult(granted, permanentlyDenied))
+                permissionResultVersion++
             }
 
             val resolutionLauncher = rememberLauncherForActivityResult(
@@ -90,7 +99,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(lifecycleOwner) {
+            LaunchedEffect(lifecycleOwner, permissionResultVersion) {
                 lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     viewModel.collectLiveLocation()
                 }

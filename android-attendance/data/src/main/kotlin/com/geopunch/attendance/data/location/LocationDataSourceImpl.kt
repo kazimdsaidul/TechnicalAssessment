@@ -20,6 +20,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import com.google.android.gms.location.LocationResult as GmsLocationResult
 
@@ -52,32 +53,38 @@ class LocationDataSourceImpl(
         if (!isLocationServicesEnabled()) return LocationResult.LocationServicesDisabled
 
         return try {
-            suspendCancellableCoroutine { continuation ->
-                val request = CurrentLocationRequest.Builder()
-                    .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-                    .build()
+            // Bounded on both ends: the request itself times out at the platform level, and
+            // withTimeoutOrNull guarantees the UI gets a response even if that platform timeout
+            // is ever not honored — a stuck spinner would itself be a hardware-failure UX bug.
+            withTimeoutOrNull(FETCH_TIMEOUT_MS + 2_000) {
+                suspendCancellableCoroutine { continuation ->
+                    val request = CurrentLocationRequest.Builder()
+                        .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                        .setDurationMillis(FETCH_TIMEOUT_MS)
+                        .build()
 
-                @Suppress("MissingPermission")
-                fusedClient.getCurrentLocation(request, null)
-                    .addOnSuccessListener { location ->
-                        val result = if (location != null) {
-                            LocationResult.Success(
-                                coordinates = Coordinates(location.latitude, location.longitude),
-                                accuracyMeters = location.accuracy,
-                            )
-                        } else {
-                            LocationResult.Unavailable("No location fix available")
+                    @Suppress("MissingPermission")
+                    fusedClient.getCurrentLocation(request, null)
+                        .addOnSuccessListener { location ->
+                            val result = if (location != null) {
+                                LocationResult.Success(
+                                    coordinates = Coordinates(location.latitude, location.longitude),
+                                    accuracyMeters = location.accuracy,
+                                )
+                            } else {
+                                LocationResult.Unavailable("No location fix available")
+                            }
+                            if (continuation.isActive) continuation.resume(result)
                         }
-                        if (continuation.isActive) continuation.resume(result)
-                    }
-                    .addOnFailureListener { exception ->
-                        if (continuation.isActive) {
-                            continuation.resume(
-                                LocationResult.Unavailable(exception.message ?: "Location fetch failed"),
-                            )
+                        .addOnFailureListener { exception ->
+                            if (continuation.isActive) {
+                                continuation.resume(
+                                    LocationResult.Unavailable(exception.message ?: "Location fetch failed"),
+                                )
+                            }
                         }
-                    }
-            }
+                }
+            } ?: LocationResult.Unavailable("Location request timed out")
         } catch (e: SecurityException) {
             LocationResult.PermissionDenied
         }
@@ -131,5 +138,6 @@ class LocationDataSourceImpl(
     private companion object {
         const val UPDATE_INTERVAL_MS = 3000L
         const val MIN_UPDATE_INTERVAL_MS = 2000L
+        const val FETCH_TIMEOUT_MS = 20_000L
     }
 }

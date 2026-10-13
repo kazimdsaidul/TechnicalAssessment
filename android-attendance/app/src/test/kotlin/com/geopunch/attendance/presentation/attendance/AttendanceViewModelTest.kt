@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -97,6 +98,28 @@ class AttendanceViewModelTest {
         assertFalse(viewModel.state.value.canMarkAttendance)
 
         job.cancel()
+    }
+
+    @Test
+    fun `setting office location never marks attendance by itself`() = runTest {
+        val locationRepository = FakeLocationRepository().apply {
+            fetchCurrentLocationResult = LocationResult.Success(office, accuracyMeters = 5f)
+        }
+        val attendanceRepository = FakeAttendanceRepository(initialOfficeLocation = null)
+        val calculateDistance = CalculateDistanceUseCase()
+        val viewModel = AttendanceViewModel(
+            locationRepository = locationRepository,
+            attendanceRepository = attendanceRepository,
+            calculateDistance = calculateDistance,
+            markAttendanceUseCase = MarkAttendanceUseCase(attendanceRepository, calculateDistance),
+        )
+
+        viewModel.onIntent(AttendanceIntent.SetOfficeLocationClicked)
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(office, viewModel.state.value.officeLocation)
+        assertFalse(viewModel.state.value.markedToday)
+        assertEquals(0, attendanceRepository.markAttendanceNowCallCount)
     }
 
     @Test
